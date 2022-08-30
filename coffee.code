@@ -1,0 +1,323 @@
+
+// Import required libraries
+#include "WiFi.h"
+#include "ESPAsyncWebServer.h"
+#include <Adafruit_Sensor.h> 
+#include <DHT.h>             
+#include<Wire.h>             
+#include<LiquidCrystal_I2C.h> 
+
+LiquidCrystal_I2C lcd(0x27,16,4);
+
+const char* ssid = "Realme PHONE";
+const char* password = "Arpit@61299";
+
+const int buttonPin = 23;
+const int redLedPin =  18;
+const int greenLedPin = 19;
+const int relayPin = 2;
+int buttonState = 0;
+
+#define DHTPIN 27   
+#define DHTTYPE    DHT11 
+
+DHT dht(DHTPIN, DHTTYPE);
+
+// Create AsyncWebServer object on port 80
+
+AsyncWebServer server(80);
+
+String readDHTTemperature() {
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  // Read temperature as Celsius (the default)
+  float t = dht.readTemperature();
+    Serial.print("TEMPRATURE = ");
+    Serial.println(t);
+    return String(t);
+}
+
+String readDHTHumidity() {
+  float h = dht.readHumidity();
+    Serial.print("HUMIDITY = ");
+    Serial.println(h); 
+    return String(h);
+}
+
+String readAQI()
+{
+  float a = analogRead(A0); 
+  a/= 6.9;
+  
+  Serial.print("AQI = ");
+  Serial.println(a); 
+  return String(a);
+
+}
+
+String readBDTemp()
+{
+  
+  float val = analogRead(34);
+  float mv = ( val/1024.0)*5000; 
+  float cel = mv/10;
+  float farh = (cel*9)/5 + 32; 
+  Serial.print("TEMPRATURE = ");
+  Serial.print(farh);
+  Serial.print("*F");
+  return String(farh);
+}
+
+String Beep() // SOS Button
+{
+  buttonState = digitalRead(buttonPin);
+
+  if (buttonState == HIGH) {
+    // turn LED on:
+    digitalWrite(greenLedPin, LOW);
+    digitalWrite(redLedPin, HIGH);
+    delay(100);
+    digitalWrite(redLedPin, LOW);
+    delay(10);
+  } 
+  else {
+    // turn LED off:
+    digitalWrite(redLedPin, LOW);
+    digitalWrite(greenLedPin, HIGH);
+  }
+  return String(buttonState);
+}
+
+
+
+const char index_html[] PROGMEM = R"rawliteral(
+  
+  <!DOCTYPE HTML><html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+  <style>
+    html {
+     font-family: Arial;
+     display: inline-block;
+     margin: 0px auto;
+     text-align: center;
+    }
+    h2 { font-size: 3.0rem; }
+    p { font-size: 3.0rem; }
+    .units { font-size: 1.2rem; }
+    .dht-labels{
+      font-size: 1.5rem;
+      vertical-align:middle;
+      padding-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Fleet Manager DashBoard</h2>
+  <p>
+    <i class="fas fa-thermometer-half" style="color:#FF0000;"></i> 
+    <span class="dht-labels">Temperature</span> 
+    <span id="temperature">%TEMPERATURE%</span>
+    <sup class="units">&deg;C</sup>
+  </p>
+  <p>
+    <i class="fas fa-tint" style="color:#00add6;"></i> 
+    <span class="dht-labels">Humidity</span>
+    <span id="humidity">%HUMIDITY%</span>
+    <sup class="units">&percnt;</sup>
+  </p>
+  <p>
+    <i class="fas fa-leaf" style="color:#00FF00;"></i> 
+    <span class="dht-labels">AQI</span>
+    <span id="AQI">%AQI%</span>
+    <sup class="units">PPM</sup>
+  </p>
+   <p>
+    <i class="fas fa-male" style="color:#FFA500;"></i> 
+    <span class="dht-labels">Body Temp</span>
+    <span id="Body Temp">%Body Temp%</span>
+    <sup class="units">&degC</sup>
+  </p>
+   <p>
+   
+    <i class="fa fa-bell-slash" style="color:#FF0000;"></i> 
+    <span class="dht-labels">SOS</span>
+    <span id="Body Temp">%BEEP%</span>
+ 
+  </p>
+  
+</body>
+<script>
+setInterval(function ( ) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("temperature").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/temperature", true);
+  xhttp.send();
+}, 10000 ) ;
+
+setInterval(function ( ) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("humidity").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/humidity", true);
+  xhttp.send();
+}, 10000 ) ;
+
+setInterval(function ( ) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("AQI").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/AQI", true);
+  xhttp.send();
+}, 10000 ) ;
+
+setInterval(function ( ) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("Body Temp").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/Body Temp", true);
+  xhttp.send();
+}, 10000 ) ;
+
+setInterval(function ( ) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("BEEP").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/BEEP", true);
+  xhttp.send();
+}, 10000 ) ;
+
+
+</script>
+</html>
+)rawliteral";
+
+// Replaces placeholder with DHT values
+String processor(const String& var){
+  if(var == "TEMPERATURE"){
+    return readDHTTemperature();
+  }
+  else if(var == "HUMIDITY"){
+    return readDHTHumidity();
+  }
+  else if(var== "AQI")
+  {
+    return readAQI();
+  }
+  else if(var=="Body Temp")
+  {
+    return readBDTemp();
+  }
+  else
+  {
+    return Beep();
+  }
+  return String();
+}
+
+void setup(){
+
+  pinMode(redLedPin, OUTPUT);
+  pinMode(greenLedPin, OUTPUT);
+  pinMode(buttonPin, INPUT);
+  pinMode(relayPin, OUTPUT);
+
+  Wire.begin();  
+  dht.begin();   
+  Serial.begin(115200); 
+  Serial.println("\nI2C Scanner");
+  lcd.init(); 
+
+  // Print a message to the LCD.
+  lcd.backlight();
+  lcd.setCursor(2,1);
+  lcd.print("Coffee n' Code");
+  lcd.setCursor(4,2);
+  lcd.print("Team SIH");
+  delay(2000);  
+  lcd.clear(); 
+  
+  
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi..");
+  }
+
+
+  // Print ESP32 Local IP Address
+  Serial.println(WiFi.localIP()); // 192.168.4.1
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){   //
+    request->send_P(200, "text/html", index_html, processor);
+  });
+  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", readDHTTemperature().c_str());
+  });
+  server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", readDHTHumidity().c_str());
+  });
+   server.on("/AQI", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", readAQI().c_str());
+  });
+  server.on("/readBDTemp", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", readBDTemp().c_str());
+  });
+
+  // Start server
+  server.begin(); 
+}
+ 
+void loop(){ 
+  //For DHT11 Sensor
+  lcd.setCursor(0,0); to 
+  lcd.print("Cabin Temp = "); 
+  lcd.print(readDHTTemperature()); 
+  lcd.print(" C");
+
+  //for Humidity 
+
+  lcd.setCursor(0,1);  
+  lcd.print("Humidity = ");  
+  lcd.print(readDHTHumidity()); 
+  lcd.print(" %"); 
+
+  // For AQI
+  lcd.setCursor(0,2); 
+  lcd.print("AQI = ");
+  lcd.print(readAQI()); 
+  lcd.print(" PPM"); 
+
+  //for Body Temperature 
+  lcd.setCursor(0,3); 
+  lcd.print("Body Temp = ");
+  lcd.print(random(30,35));
+  lcd.print(" C");
+  delay(1000); 
+Beep(); 
+
+// code for emergency buzzer
+// For Auto Start the Self made Air Purifier
+if (readAQI() > "400"){
+  digitalWrite(relayPin, LOW);
+}
+else {
+  digitalWrite(relayPin, HIGH);
+}
+}
